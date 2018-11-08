@@ -20,12 +20,69 @@ function obHandler($buffer) {
 // Render error page
 function errorPage($msg) {
 	header($_SERVER['SERVER_PROTOCOL'] . ' 403 Forbidden', true, 403);
+	discordMessage($msg,true);
 	echo "<html>\n<body>\n"
 		 . $msg . "\n"
 		 . "</body>\n</html>\n"
 		 . "<!--\n~~~~~~~~~~~~~ Prevent browser friendly error page ~~~~~~~~~~~~~~\n"
 		 . str_repeat(str_repeat("~", 64) . "\n", 8) 
 		 . "-->\n";
+}
+
+// Send message to discord webhook
+function discordMessage($message,$error = false) {
+	// prevent execution if discord webhook not enabled
+	if(!defined("DISCORD_WEBHOOK") || DISCORD_WEBHOOK === false) return;
+
+	// abort if no message set
+	if(empty($message)) return;
+
+	if($error === false){
+		$data = array(
+			'name' => DISCORD_USER_NAME,
+			'avatar_url' => DISCORD_AVATAR_URL,
+			'embeds' => [[
+				"title" => "Deploy successful!",
+				"description" => strip_tags($message),
+				"color" => "3932074"
+			]]
+		);
+	}else{
+		$data = array(
+			'name' => DISCORD_USER_NAME,
+			'avatar_url' => DISCORD_AVATAR_URL,
+			'embeds' => [[
+				"title" => "Deploy failed..",
+				"description" => strip_tags($message),
+				"color" => "16727357"
+			]]
+		);
+	}
+	
+	$data_string = json_encode($data);
+	$curl = curl_init();
+	curl_setopt($curl, CURLOPT_URL, DISCORD_WEBHOOK_URL);
+	curl_setopt($curl, CURLOPT_POST, 1);
+	curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+	curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+	curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+	curl_setopt($curl, CURLOPT_POSTFIELDS, $data_string);
+
+	$output = curl_exec($curl);
+	$output = json_decode($output, true);
+	if (curl_getinfo($curl, CURLINFO_HTTP_CODE) != 204) {
+		die(var_dump($output));
+		echo "ERR! DISCORD_WEBHOOK RETURNED: ".$output['message'];
+		header($_SERVER['SERVER_PROTOCOL'] . ' 500 Internal Server Error', true, 500);
+		printf('<span class="error">Error encountered! Stopping the script to prevent possible data loss.
+CHECK THE DATA IN YOUR TARGET DIR!</span>
+'
+		);
+		endScript();
+		exit;
+	}
+	curl_close($curl);
 }
 
 // Command to execute at the end of the script
@@ -83,6 +140,14 @@ if (!defined('TARGET_DIR') || TARGET_DIR === '') $err[] = 'Target directory is n
 if (!defined('TIME_LIMIT')) define('TIME_LIMIT', 60);
 if (!defined('EXCLUDE_FILES')) define('EXCLUDE_FILES', serialize(array('.git')));
 if (!defined('RSYNC_FLAGS')) define('RSYNC_FLAGS', '-rltgoDzvO');
+if(!defined("DISCORD_WEBHOOK")) define("DISCORD_WEBHOOK",false);
+
+if(defined("DISCORD_WEBHOOK") && DISCORD_WEBHOOK === true){
+	// only check other discord configuration values, if discord webhook is enabled
+	if(!defined("DISCORD_WEBHOOK_URL") || empty(DISCORD_WEBHOOK_URL)){
+		$err[] = 'Discord webook url not configured';
+	}
+}
 
 // If there is a configuration error
 if (count($err)) {
@@ -477,9 +542,16 @@ cmd(sprintf(
 	, $checkout
 	, TARGET_DIR . 'VERSION'
 ));
+
+$execTime = $time + microtime(true);
+$deployedMessage = "**Execution:** $execTime seconds \n";
+$deployedMessage .= "**Deployed:** \n(".$branch.") ".REMOTE_REPOSITORY."\n";
+$deployedMessage .= "**To:** ".TARGET_DIR."\n";
+discordMessage($deployedMessage);
+
 ?>
 
-Done in <?php echo $time + microtime(true); ?>sec
+Done in <?= $execTime ?>sec
 </pre>
 </body>
 </html>
