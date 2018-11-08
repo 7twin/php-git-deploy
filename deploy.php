@@ -39,7 +39,7 @@ function discordMessage($message,$error = false) {
 
 	if($error === false){
 		$data = array(
-			'name' => DISCORD_USER_NAME,
+			'username' => DISCORD_USER_NAME,
 			'avatar_url' => DISCORD_AVATAR_URL,
 			'embeds' => [[
 				"title" => "Deploy successful!",
@@ -49,7 +49,7 @@ function discordMessage($message,$error = false) {
 		);
 	}else{
 		$data = array(
-			'name' => DISCORD_USER_NAME,
+			'username' => DISCORD_USER_NAME,
 			'avatar_url' => DISCORD_AVATAR_URL,
 			'embeds' => [[
 				"title" => "Deploy failed..",
